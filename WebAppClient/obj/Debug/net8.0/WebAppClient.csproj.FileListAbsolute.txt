@@ -1,0 +1,14 @@
+/home/vitaly/WebApplication1/WebAppClient/bin/Debug/net8.0/WebAppClient
+/home/vitaly/WebApplication1/WebAppClient/bin/Debug/net8.0/WebAppClient.deps.json
+/home/vitaly/WebApplication1/WebAppClient/bin/Debug/net8.0/WebAppClient.runtimeconfig.json
+/home/vitaly/WebApplication1/WebAppClient/bin/Debug/net8.0/WebAppClient.dll
+/home/vitaly/WebApplication1/WebAppClient/bin/Debug/net8.0/WebAppClient.pdb
+/home/vitaly/WebApplication1/WebAppClient/obj/Debug/net8.0/WebAppClient.GeneratedMSBuildEditorConfig.editorconfig
+/home/vitaly/WebApplication1/WebAppClient/obj/Debug/net8.0/WebAppClient.AssemblyInfoInputs.cache
+/home/vitaly/WebApplication1/WebAppClient/obj/Debug/net8.0/WebAppClient.AssemblyInfo.cs
+/home/vitaly/WebApplication1/WebAppClient/obj/Debug/net8.0/WebAppClient.csproj.CoreCompileInputs.cache
+/home/vitaly/WebApplication1/WebAppClient/obj/Debug/net8.0/WebAppClient.dll
+/home/vitaly/WebApplication1/WebAppClient/obj/Debug/net8.0/refint/WebAppClient.dll
+/home/vitaly/WebApplication1/WebAppClient/obj/Debug/net8.0/WebAppClient.pdb
+/home/vitaly/WebApplication1/WebAppClient/obj/Debug/net8.0/WebAppClient.genruntimeconfig.cache
+/home/vitaly/WebApplication1/WebAppClient/obj/Debug/net8.0/ref/WebAppClient.dll

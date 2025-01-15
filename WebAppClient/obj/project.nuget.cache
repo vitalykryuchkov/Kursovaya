@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "dgSpecHash": "O7tl4BhqK/p8OafEULPQmT0uH7CUmrnKbJXkqA6+otvecf8rLFrb4g8xNMDhJxkU4XumqyDrw3nQXoXYdMJDiA==",
+  "success": true,
+  "projectFilePath": "/home/vitaly/WebApplication1/WebAppClient/WebAppClient.csproj",
+  "expectedPackageFiles": [
+    "/home/vitaly/.nuget/packages/sixlabors.imagesharp/3.1.6/sixlabors.imagesharp.3.1.6.nupkg.sha512"
+  ],
+  "logs": []
+}

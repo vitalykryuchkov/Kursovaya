@@ -13,6 +13,10 @@
     <SourceRoot Include="/home/vitaly/.nuget/packages/" />
   </ItemGroup>
   <ImportGroup Condition=" '$(ExcludeRestorePackageImports)' != 'true' ">
+    <Import Project="$(NuGetPackageRoot)xunit.core/2.9.2/build/xunit.core.props" Condition="Exists('$(NuGetPackageRoot)xunit.core/2.9.2/build/xunit.core.props')" />
     <Import Project="$(NuGetPackageRoot)sixlabors.imagesharp/3.1.6/build/SixLabors.ImageSharp.props" Condition="Exists('$(NuGetPackageRoot)sixlabors.imagesharp/3.1.6/build/SixLabors.ImageSharp.props')" />
   </ImportGroup>
+  <PropertyGroup Condition=" '$(ExcludeRestorePackageImports)' != 'true' ">
+    <Pkgxunit_analyzers Condition=" '$(Pkgxunit_analyzers)' == '' ">/home/vitaly/.nuget/packages/xunit.analyzers/1.16.0</Pkgxunit_analyzers>
+  </PropertyGroup>
 </Project>

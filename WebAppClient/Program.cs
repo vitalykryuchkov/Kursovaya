@@ -3,12 +3,31 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text;
 using System.Net;
+using SixLabors.ImageSharp;
 
-HttpClient client  = new HttpClient();
+
+var handler = new HttpClientHandler { CookieContainer = new CookieContainer() };
+HttpClient client = new HttpClient(handler);
+
+List<string> requestHistory = new List<string>();
+
+void DisplayRequestHistory() {
+  Console.WriteLine("История запросов: ");
+  if (requestHistory.Count == 0) {
+    Console.WriteLine("Нет запросов.");
+    Console.WriteLine();
+  }
+  else {
+    foreach (var entry in requestHistory) {
+      Console.WriteLine(entry);
+    }
+  }
+}
 
 async Task LoginOnServer(string? username, string? password, HttpClient client) {
   if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password)) {
-    return;
+    Console.WriteLine("Логин и/или пароль не могут быть пустыми");
+    return ;
   }
   string request = "/login?login=" + username + "&password=" + password;
   var response = await client.PostAsync(request, null);
@@ -24,132 +43,181 @@ async Task LoginOnServer(string? username, string? password, HttpClient client) 
     Console.WriteLine("Авторизация провалена" + await response.Content.ReadAsStringAsync());
   }
 }
+
 async Task<bool> RegistrationOnServer(string username, string password) {
   if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password)) {
     return false;
   }
   var content = new StringContent(JsonSerializer.Serialize(new { username, password }), Encoding.UTF8, "application/json");
-  var response = await client.PostAsync("/register", content);
-  if (response.IsSuccessStatusCode) {
-    Console.WriteLine("Регистрация прошла успешно");
-    return true; 
-  } else {
-    Console.WriteLine("Регистрация провалена: " + await response.Content.ReadAsStringAsync());
+  try {
+    var response = await client.PostAsync("/register", content);
+      if (response.IsSuccessStatusCode) {
+        Console.WriteLine("Регистрация прошла успешно");
+        return true; 
+      } 
+      else
+      {
+        Console.WriteLine("Регистрация провалена: " + await response.Content.ReadAsStringAsync());
+        return false;
+      }
+  }
+  catch (HttpRequestException ex) 
+  {
+    Console.WriteLine($"Ошибка при выполнении запроса: {ex.Message}");
     return false;
   }
 }
 
-void HistoryofUser(){
-    string request = "/history";
-
-    var responce = client.GetAsync(request).Result;
-    if (responce.IsSuccessStatusCode){
-        var content = responce.Content.ReadAsStringAsync().Result;
-        content = content.Substring(1, content.Length-2);
-        int count = 0;
-        for (int i = 0; i < content.Length; i++){
-            if (content[i] == ',')
-                count++;
-        }
-        string[] input = new string[count];
-        input = content.Split(',');
-        System.Console.WriteLine("History of your requests:");
-        for (int j = 0; j < input.Length; j++)
-            Console.WriteLine($"{j+1}.   {input[j]}");
-        Console.WriteLine();
-    }
-    else{
-        Console.WriteLine(responce.Content.ReadAsStringAsync().Result);
-    }
-}
-
-void ClearHistory(){
+async Task ClearHistory() {
     string request = "/clear_history";
-
-    var responce = client.DeleteAsync(request).Result;
-    if (responce.IsSuccessStatusCode){
-        Console.WriteLine(responce.Content.ReadAsStringAsync().Result);
-        Console.WriteLine();
-    }
-    else{
-        Console.WriteLine(responce.Content.ReadAsStringAsync().Result);
-        Console.WriteLine();
+    var response = await client.DeleteAsync(request);
+    requestHistory.Clear();
+    if (response.IsSuccessStatusCode) {
+        Console.WriteLine(await response.Content.ReadAsStringAsync());
+        requestHistory.Add("История запросов очищена на сервере");
+    } else {
+        Console.WriteLine(await response.Content.ReadAsStringAsync());
     }
 }
 
-async Task UploadImage(string filePath) {
-  var content = new MultipartFormDataContent();
-  var fileStream = new FileStream(filePath, FileMode.Open);
-  content.Add(new StreamContent(fileStream),"file", Path.GetFileName(filePath));
+async Task ChangePassword(string username)
+{
+    Console.Write("Введите текущий пароль: ");
+    string? oldPassword = Console.ReadLine();
+    Console.Write("Введите новый пароль: ");
+    string? newPassword = Console.ReadLine();
 
-  var response = await client.PostAsync("/upload", content);
-  if (response.IsSuccessStatusCode) {
-    Console.WriteLine("Изображение загружено: " + await response.Content.ReadAsStringAsync());
-  }
+    if (string.IsNullOrWhiteSpace(newPassword))
+    {
+        Console.WriteLine("Новый пароль не может быть пустым.");
+        return;
+    }
+
+    if (oldPassword == newPassword) {
+        Console.WriteLine("Новый пароль должен отличаться от старого.");
+        return;
+    }
+
+    var changePasswordRequest = new { Login = username, newPassword = newPassword, oldPassword = oldPassword };
+    var content = new StringContent(JsonSerializer.Serialize(changePasswordRequest), Encoding.UTF8, "application/json");
+
+    var response = await client.PostAsync("/change_password", content);
+    if (response.IsSuccessStatusCode)
+    {
+        Console.WriteLine("Пароль успешно изменен.");
+    }
+    else
+    {
+        Console.WriteLine("Ошибка смены пароля: " + await response.Content.ReadAsStringAsync());
+    }
 }
+
+async Task UploadImage(string path)
+{
+    try
+    {
+        if (string.IsNullOrEmpty(path))
+        {
+            Console.WriteLine("Ошибка! Путь не может быть пустым.");
+            return;
+        }
+
+        using var client = new HttpClient();
+        using var content = new MultipartFormDataContent();
+        await using var stream = File.OpenRead(path);
+        var fileContent = new StreamContent(stream);
+        fileContent.Headers.ContentType = new MediaTypeHeaderValue("image/png");
+        content.Add(fileContent, "file", Path.GetFileName(path));
+
+        Console.WriteLine($"Отправка файла {path} на сервер...");
+
+        var response = await client.PostAsync("http://localhost:5097/upload", content);
+        var responseContent = await response.Content.ReadAsStringAsync();
+
+        requestHistory.Add($"Загрузил изображение: {path} - Отве: {responseContent}");
+        Console.WriteLine($"Ответ сервера: {responseContent}");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Ошибка при загрузке изображения: {ex.Message}");
+    }
+}
+
 async Task GenerateASCIIArt(string filename) {
   var content = new StringContent(filename, Encoding.UTF8, "application/json");
   var response = await client.PostAsync("/generate", content);
-  if (response.IsSuccessStatusCode) {
-    var result = await response.Content.ReadAsStringAsync();
-    Console.WriteLine("ASCII Art: " + result);
-  }
-  else {
-    Console.WriteLine("Ошибка генерации ASCII Art: " + await response.Content.ReadAsStringAsync());
-  }
+  if (response.IsSuccessStatusCode)
+    {
+        var jsonResponse = await response.Content.ReadAsStringAsync();
+        var artResponse = JsonSerializer.Deserialize<ArtResponse>(jsonResponse);
+
+        if (artResponse != null)
+        {
+            string formattedArt = artResponse.art.Replace("\\n", "\n");
+            Console.WriteLine(new string('-', 50));
+            Console.WriteLine("Сгенерированный ASCII Art:");
+            Console.WriteLine(new string('-', 50));
+            Console.WriteLine(formattedArt);
+            Console.WriteLine(new string('-', 50));
+        }
+        else
+        {
+            Console.WriteLine("Ошибка парсинга ответа.");
+        }
+
+        requestHistory.Add($"Сгенерировал ASCII Art для файла: {filename}");
+    }
+    else
+    {
+        Console.WriteLine("Ошибка генерации ASCII Art: " + await response.Content.ReadAsStringAsync());
+    }
 }
+
 async Task DeleteFile(string filename) {
     var content = new StringContent(filename, Encoding.UTF8, "application/json");
     var response = await client.PostAsync("/delete", content);
     if (response.IsSuccessStatusCode) {
+        requestHistory.Add($"Удалил файл: {filename}");
         Console.WriteLine("Файл успешно удален: " + await response.Content.ReadAsStringAsync());
     } else {
         Console.WriteLine("Ошибка удаления файла: " + await response.Content.ReadAsStringAsync());
     }
 }
 
-string GetRandom(HttpClient client) {
-  string request = "/random";
-  var response = client.GetAsync(request).Result;
-  if (response.IsSuccessStatusCode) {
-    var jsonResponse = response.Content.ReadAsStringAsync().Result;
-    var artResponse = JsonSerializer.Deserialize<ArtResponse>(jsonResponse);
-    return artResponse?.art?.Replace("\\n","\n")?.Trim() ?? "Данные недоступны";
-  }
-  else {
-    return "Данные недоступны";
-  }
-}
-
 const string DEFAULT_SERVER_URL = "http://localhost:5097";
 Console.WriteLine("Введите URL сервера (http://localhost:5097 по умолчанию): ");
 string? serverUrl = Console.ReadLine();
+
 if (string.IsNullOrWhiteSpace(serverUrl)) 
 {
-  serverUrl = DEFAULT_SERVER_URL;
+    serverUrl = DEFAULT_SERVER_URL;
 }
 try {
     client.BaseAddress = new Uri(serverUrl);
-    while (true) {
+    bool isAuthenticated = false;
+
+    string? username = null;
+
+    while (!isAuthenticated) {
         Console.WriteLine("АВТОРИЗАЦИЯ");
         Console.WriteLine("Логин: ");
-        string? username = Console.ReadLine();
+        string? inputUsername = Console.ReadLine();
         Console.WriteLine("Пароль: ");
         string? password = Console.ReadLine();
         
         var cookieContainer = new CookieContainer();
-        var handler = new HttpClientHandler {
+        var clientHandler = new HttpClientHandler {
             CookieContainer = cookieContainer
         };
-        var clientWithCookies = new HttpClient(handler) {
+        var clientWithCookies = new HttpClient(clientHandler) {
             BaseAddress = new Uri(serverUrl)
         };
 
-        await LoginOnServer(username, password, clientWithCookies);
+        await LoginOnServer(inputUsername, password, clientWithCookies);
         
         if (cookieContainer.Count > 0) {
-            Console.WriteLine(GetRandom(clientWithCookies));
-            break;
+            isAuthenticated = true;
+            username = inputUsername;
         } else {
             Console.WriteLine("Попробуйте снова.");
             Console.WriteLine("Хотите зарегистрироваться? (да/нет)");
@@ -166,49 +234,60 @@ try {
                 }
             }
         }
-        bool exit = false;
-        while (!exit) {
-          Console.WriteLine("Выберите действие: \n 1 - Загрузить изображение \n 2 - Сгенерировать ASCII Art \n 3 - Удалить файл \n 4 - История запросов \n 5 - Очистить историю запросов \n 0 - Выход");
-          string? choice = Console.ReadLine();
+    }
 
-          switch (choice) {
+   bool exit = false;
+    while (!exit) {
+        Console.WriteLine("Выберите действие: \n 1 - Загрузить изображение \n 2 - Сгенерировать ASCII Art \n 3 - Удалить файл \n 4 - История запросов \n 5 - Очистить историю запросов \n 6 - Сменить пароль \n 0 - Выход");
+        string? choice = Console.ReadLine();
+
+        switch (choice) {
             case "1":
                 Console.Write("Введите путь к изображению для загрузки: ");
-                string uploadPath = "/home/vitaly/WebApplication1/imag.png";
+                string uploadPath = Console.ReadLine() ?? "/home/vitaly/WebApplication1/imag.png";
                 await UploadImage(uploadPath);
                 break;
                 
             case "2":
                 Console.Write("Введите имя файла для генерации ASCII Art: ");
-                string generateFilename = "imag.png";
+                string generateFilename = Console.ReadLine() ?? "imag.png";
                 await GenerateASCIIArt(generateFilename);
                 break;
 
             case "3":
                 Console.Write("Введите имя файла для удаления: ");
-                string deleteFilename = "imag.png";
+                string deleteFilename = Console.ReadLine() ?? "imag.png";
                 await DeleteFile(deleteFilename);
                 break;
 
             case "4":
-              HistoryofUser();
-              break;
+                DisplayRequestHistory();
+                break;
 
             case "5":
-              ClearHistory();
-              break;
+                await ClearHistory();
+                Console.WriteLine("История запросов очищена.");
+                break;
+            
+            case "6":
+                if (username != null) {
+                  await ChangePassword(username);
+                }
+                else {
+                  Console.WriteLine("Ошибка: пользователь не авторизован.");
+                }
+                break;
 
             case "0":
                 exit = true;
                 Console.WriteLine("Выход из программы.");
-                return;
+                break;
 
             default:
                 Console.WriteLine("Неверный выбор, попробуйте снова.");
                 break;
         }
     }
-  }
 } catch (Exception ex) {
     Console.WriteLine("Ошибка!" + ex.Message);
 }

@@ -58,3 +58,4 @@
 /home/vitaly/WebApplication1/WebApplication1/bin/Debug/net8.0/xunit.assert.dll
 /home/vitaly/WebApplication1/WebApplication1/bin/Debug/net8.0/xunit.core.dll
 /home/vitaly/WebApplication1/WebApplication1/bin/Debug/net8.0/xunit.execution.dotnet.dll
+/home/vitaly/WebApplication1/WebApplication1/obj/Debug/net8.0/WebApplication1.sourcelink.json

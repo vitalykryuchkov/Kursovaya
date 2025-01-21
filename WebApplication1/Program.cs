@@ -42,27 +42,53 @@ app.UseExceptionHandler("/error");
 
 app.MapGet("/", () => "Здравствуй, пользователь, загрузи изображение...");
 
+const string DB_PATH = "/home/vitaly/db.sqlite";
+
 void LogRequest(string endpoint) {
     requestHistory.Add($"Request to {endpoint} at {DateTime.UtcNow}");
 }
 
-app.MapPost("/upload", async (HttpRequest request) => {
-    LogRequest("/upload");
-    try 
+app.MapPost("/upload", async (HttpRequest request) =>
+{
+    Console.WriteLine("Получен запрос на загрузку файла...");
+
+    if (!request.HasFormContentType)
     {
-        var memoryStream = new MemoryStream();
-        await request.Body.CopyToAsync(memoryStream);
-        memoryStream.Seek(0, SeekOrigin.Begin);
-        Image image = Image.Load<Rgba32>(memoryStream);
-
-        var fileName = Path.Combine(uploadDir, Guid.NewGuid() + ".png");
-        await image.SaveAsync(fileName);
-
-        return Results.Ok(new {message = "Изображение загружено", filename = fileName});
+        Console.WriteLine("Неверный тип содержимого.");
+        return Results.BadRequest("Неверный тип содержимого.");
     }
-    catch (Exception ex) {
-        return Results.BadRequest("Ошибка изображения: " + ex.Message);
+
+    var form = await request.ReadFormAsync();
+    var file = form.Files.FirstOrDefault();
+    if (file == null || file.Length == 0)
+    {
+        Console.WriteLine("Файл не найден в запросе или он пустой.");
+        return Results.BadRequest("Файл не найден в запросе.");
     }
+
+    Console.WriteLine($"Получен файл: {file.FileName}, размер: {file.Length} байт.");
+
+    using var memoryStream = new MemoryStream();
+    await file.CopyToAsync(memoryStream);
+    memoryStream.Seek(0, SeekOrigin.Begin);
+
+    Image image;
+    try
+    {
+        image = Image.Load<Rgba32>(memoryStream);
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine("Ошибка загрузки изображения: " + ex.Message);
+        return Results.BadRequest("Ошибка загрузки изображения: " + ex.Message);
+    }
+
+    var fileName = Path.Combine(uploadDir, Guid.NewGuid() + ".png");
+    await image.SaveAsync(fileName);
+
+    Console.WriteLine($"Изображение сохранено как: {fileName}");
+
+    return Results.Ok(new { message = "Изображение загружено", filename = fileName });
 });
 
 app.MapPost("/generate", async (HttpRequest request) => {
@@ -112,15 +138,16 @@ app.MapPost("/delete", async (HttpRequest request) => {
     }
 });
 
-app.MapPost("/login", async (string login, string password, HttpContext context) => {if (!db.CheckUser(login,password))
+app.MapPost("/login", async (string login, string password, HttpContext context) => {
+    if (!db.CheckUser(login, password))
         return Results.Unauthorized();
 
-        LogRequest("/login");
-        var claims = new List<Claim> {new Claim(ClaimTypes.Name, login)};
-        ClaimsIdentity claimsIdentity = new ClaimsIdentity(claims, "Cookies");
-        await context.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(claimsIdentity));
-        
-        return Results.Ok();
+    LogRequest("/login");
+    var claims = new List<Claim> { new Claim(ClaimTypes.Name, login) };
+    ClaimsIdentity claimsIdentity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+    await context.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(claimsIdentity));
+    
+    return Results.Ok();
 });
 
 app.MapPost("/send_cookie", [Authorize] async (HttpRequest request, HttpContext context) => {
@@ -163,24 +190,39 @@ app.MapPost("/register", async (HttpRequest request) => {
     }
 });
 
-app.MapPost("/change_password", async (HttpRequest request) => {
+app.MapPost("/change_password", async (HttpRequest request) => { 
     LogRequest("/change_password");
     try {
         using var reader = new StreamReader(request.Body);
         var body = await reader.ReadToEndAsync();
         var changePasswordRequest = JsonSerializer.Deserialize<ChangePasswordRequest>(body);
-        if (changePasswordRequest == null || string.IsNullOrWhiteSpace(changePasswordRequest.newPassword) || string.IsNullOrWhiteSpace(changePasswordRequest.Login)) {
-            return Results.BadRequest("Новый пароль не может быть пустым");
+
+        if (changePasswordRequest == null || 
+            string.IsNullOrWhiteSpace(changePasswordRequest.newPassword) || 
+            string.IsNullOrWhiteSpace(changePasswordRequest.Login) || 
+            string.IsNullOrWhiteSpace(changePasswordRequest.oldPassword)) 
+        {
+            return Results.BadRequest("Все поля должны быть заполнены.");
         }
-        bool success = db.ChangePassword(changePasswordRequest.Login, changePasswordRequest.newPassword);
+
+        var db = new DBManager();
+        if (!db.ConnectToDB(DB_PATH)) {
+            return Results.Problem("Не удалось подключиться к базе данных.", statusCode: 500);
+        }
+
+        if (!db.CheckUser(changePasswordRequest.Login, changePasswordRequest.oldPassword)) {
+            return Results.BadRequest("Неверное имя пользователя или старый пароль.");
+        }
+
+        bool success = db.ChangePassword(changePasswordRequest.Login, db.HashPassword(changePasswordRequest.newPassword));
+        db.Disconnect();
+
         if (success) {
             return Results.Ok("Пароль успешно изменен");
-        }
-        else {
+        } else {
             return Results.BadRequest("Не удалось изменить пароль");
         }
-    }
-    catch (Exception ex) {
+    } catch (Exception ex) {
         return Results.BadRequest("Ошибка изменения пароля: " + ex.Message);
     }
 });
@@ -191,7 +233,7 @@ app.MapGet("/clear_history", async (HttpRequest request) => {
     return Results.Ok("История пуста");
 });
 
-const string DB_PATH = "/home/vitaly/db.sqlite";
+
 if(!db.ConnectToDB(DB_PATH)) {
     Console.WriteLine("Ошибка подключения в базе данных: " + DB_PATH);
     Console.WriteLine("Выключение!");
@@ -201,7 +243,7 @@ app.MapPost("/test", (HttpContext context) => {
     return Results.Ok("Тест успешен");
 });
 
-app.MapGet("/history", () => Results.Ok(requestHistory));
+app.MapGet("/history", [Authorize] () => Results.Ok(requestHistory));
 
 app.Run();
 db.Disconnect();
@@ -244,8 +286,9 @@ public class ASCIIArtCreator
 }
 
 public class ChangePasswordRequest {
-    public required string newPassword { get; set; }
     public required string Login { get; set; }
+    public required string newPassword { get; set; }
+    public required string oldPassword { get; set; }
 }
 
 public class UserRegistration {

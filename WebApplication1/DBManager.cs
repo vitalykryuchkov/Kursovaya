@@ -7,7 +7,7 @@ using Microsoft.Data.Sqlite;
 public class DBManager {
     private SqliteConnection? connection = null;
 
-    private string HashPassword(string password) {
+    public string HashPassword(string password) {
         using (var algorithm = SHA256.Create()) {
             var bytes_hash = algorithm.ComputeHash(Encoding.Unicode.GetBytes(password));
             return Convert.ToBase64String(bytes_hash);
@@ -39,7 +39,7 @@ public class DBManager {
             return;
         connection.Close();
         Console.WriteLine("Disconnect from db");
-        connection = null; // Сбросить соединение
+        connection = null; 
     }
 
     public bool CheckConnection() {
@@ -106,18 +106,21 @@ public class DBManager {
       }
     }
     public bool ChangePassword(string username, string newPassword) {
-      if (!CheckConnection()) {
+    if (!CheckConnection()) {
         Console.WriteLine("Нет соединения с базой данных.");
         return false;
-      }
-      string request = "UPDATE users SET Password=@newPassword WHERE Login=@username";
-      using (var command = new SqliteCommand(request, connection)) {
-        command.Parameters.AddWithValue("@newPassword", newPassword);
+    }
+
+    string hashedPassword = HashPassword(newPassword);
+
+    string request = "UPDATE users SET Password=@newPassword WHERE Login=@username";
+    using (var command = new SqliteCommand(request, connection)) {
+        command.Parameters.AddWithValue("@newPassword", hashedPassword); 
         command.Parameters.AddWithValue("@username", username);
         int rowsAffected = command.ExecuteNonQuery();
         return rowsAffected > 0;
-      }
     }
+}
     public bool RegisterUser(string login, string password) {
         bool added = AddUser(login, password);
         if (!added) {

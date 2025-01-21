@@ -16,3 +16,4 @@
 /home/vitaly/WebApplication1/WebAppClient/bin/Debug/net8.0/Newtonsoft.Json.dll
 /home/vitaly/WebApplication1/WebAppClient/bin/Debug/net8.0/SixLabors.ImageSharp.dll
 /home/vitaly/WebApplication1/WebAppClient/obj/Debug/net8.0/WebAppClient.csproj.CopyComplete
+/home/vitaly/WebApplication1/WebAppClient/obj/Debug/net8.0/WebAppClient.sourcelink.json
